@@ -1,4 +1,6 @@
 <?php
+error_reporting(0);
+
 header('Content-type:application/json');
 
 if (isset($_SERVER['HTTP_ORIGIN'])) {
