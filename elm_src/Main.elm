@@ -73,7 +73,7 @@ init _ =
 type Msg
     = GotMails (Result Http.Error Content)
     | Refresh
-    | Deconnect
+    | LogOut
     | SetMdp String
     | LogIn
     | Tick Time.Posix
@@ -103,7 +103,7 @@ update msg model =
         LogIn ->
             ( { model | state = Loading }, getMails model.mdp )
 
-        Deconnect ->
+        LogOut ->
             init ()
 
 
@@ -169,7 +169,7 @@ view model =
 
                 else
                     [ button [ onClick Refresh, class "w3-button w3-blue" ] [ text "Refresh" ],
-                      button [ onClick Deconnect, class "w3-button w3-red" ] [ text "Deconnect" ] ]
+                      button [ onClick LogOut, class "w3-button w3-red" ] [ text "Log Out" ] ]
         in
         let
             mails =
