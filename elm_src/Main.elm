@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (..)
-import Html.Attributes exposing (class, href, style, type_, value)
+import Html.Attributes exposing (class, href, type_, value, target, src, autoplay)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, bool, field, int, list, map2, map6, string)
@@ -43,20 +43,24 @@ type alias Content =
     }
 
 
+type State =
+    NotLoggedIn
+    | Loading
+    | NewMails
+    | NothingNew
+
+
 type alias Model =
-    { logedIn : Bool
+    { state : State
     , mdp : String
     , content : Content
-    , loading : Bool
     }
-
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { logedIn = False
+    ( { state = NotLoggedIn
       , mdp = ""
       , content = { errors = [], mails = [] }
-      , loading = False
       }
     , Cmd.none
     )
@@ -69,6 +73,7 @@ init _ =
 type Msg
     = GotMails (Result Http.Error Content)
     | Refresh
+    | Deconnect
     | SetMdp String
     | LogIn
     | Tick Time.Posix
@@ -80,22 +85,26 @@ update msg model =
         GotMails result ->
             case result of
                 Ok content ->
-                    ( { model | loading = False, content = content }, Cmd.none )
+                    let state = if List.length content.mails > List.length model.content.mails then NewMails else NothingNew in
+                    ( { model | state = state, content = content }, Cmd.none )
 
                 Err err ->
-                    ( { model | loading = False, content = { errors = [ "Http Error: " ++ error_to_string err ], mails = [] } }, Cmd.none )
+                    ( { model | state = NothingNew, content = { errors = [ "Http Error: " ++ error_to_string err ], mails = [] } }, Cmd.none )
 
         SetMdp mdp ->
             ( { model | mdp = mdp }, Cmd.none )
 
         Tick _ ->
-            ( { model | loading = True }, getMails model.mdp )
+            ( { model | state = Loading }, getMails model.mdp )
 
         Refresh ->
-            ( { model | loading = True }, getMails model.mdp )
+            ( { model | state = Loading }, getMails model.mdp )
 
         LogIn ->
-            ( { model | logedIn = True, loading = True }, getMails model.mdp )
+            ( { model | state = Loading }, getMails model.mdp )
+
+        Deconnect ->
+            init ()
 
 
 error_to_string : Http.Error -> String
@@ -131,10 +140,10 @@ subscriptions model =
 
 view : Model -> Browser.Document Msg
 view model =
-    if not model.logedIn then
+    if model.state == NotLoggedIn then
         { title = "Restricted Area"
         , body =
-            [ div [ class "w3-display-middle w3-card-4", style "width" "50%" ]
+            [ div [ class "w3-display-middle w3-card-4 login" ]
                 [ div [ class "w3-container w3-green" ] [ h1 [] [ text "Restricted Area" ] ]
                 , form [ class "w3-container", onSubmit LogIn ]
                     [ p [] [ input [ type_ "password", class "w3-input w3-border", onInput SetMdp ] [] ]
@@ -154,16 +163,17 @@ view model =
                 tr [] [ th [] [ text "Subject" ], th [] [ text "From" ], th [] [ text "To" ], th [] [ text "Date" ], th [] [ text "Webmail" ] ]
         in
         let
-            loading =
-                if model.loading then
-                    text "Refreshing..."
+            buttons =
+                if model.state == Loading then
+                    [ text "Refreshing..." ]
 
                 else
-                    button [ onClick Refresh, class "w3-button w3-blue" ] [ text "Refresh" ]
+                    [ button [ onClick Refresh, class "w3-button w3-blue" ] [ text "Refresh" ],
+                      button [ onClick Deconnect, class "w3-button w3-red" ] [ text "Deconnect" ] ]
         in
         let
             mails =
-                div [ class "w3-container" ] [ h1 [] [ text "Emails" ], p [] [ loading ], table [ class "w3-table-all" ] (legend :: List.map view_mail model.content.mails) ]
+                div [ class "w3-container" ] [ h1 [] [ text "Emails" ], p [] buttons, div [class "w3-responsive"] [ table [ class "w3-table-all" ] (legend :: List.map view_mail model.content.mails) ] ]
         in
         let
             size =
@@ -180,7 +190,13 @@ view model =
                 else
                     String.fromInt size ++ " new mails"
         in
-        { title = title, body = errors ++ [ mails ] }
+        let body =
+                if model.state == NewMails then
+                    (audio [src "./bell.wav",autoplay True] []) :: (errors ++ [ mails ])
+                else
+                    errors ++ [ mails ]
+        in
+        { title = title, body = body }
 
 
 view_mail : Mail -> Html Msg
@@ -203,7 +219,7 @@ view_mail mail =
     in
     let
         webmail =
-            td [] [ a [ href mail.webmail ] [ text "GO" ] ]
+            td [] [ a [ href mail.webmail, target "_blank" ] [ text "GO" ] ]
     in
     tr [] [ subject, from, to, date, webmail ]
 
