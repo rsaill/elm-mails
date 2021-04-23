@@ -53,6 +53,7 @@ type State =
 type alias Model =
     { state : State
     , mdp : String
+    , blur : Bool
     , content : Content
     }
 
@@ -60,6 +61,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { state = NotLoggedIn
       , mdp = ""
+      , blur = False
       , content = { errors = [], mails = [] }
       }
     , Cmd.none
@@ -77,6 +79,8 @@ type Msg
     | SetMdp String
     | LogIn
     | Tick Time.Posix
+    | Show
+    | Hide
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -105,6 +109,12 @@ update msg model =
 
         LogOut ->
             init ()
+
+        Show ->
+            ( { model | blur = False }, Cmd.none )
+
+        Hide ->
+            ( { model | blur = True }, Cmd.none )
 
 
 error_to_string : Http.Error -> String
@@ -169,11 +179,13 @@ view model =
 
                 else
                     [ button [ onClick Refresh, class "w3-button w3-blue" ] [ text "Refresh" ],
+                    if model.blur then button [ onClick Show, class "w3-button w3-yellow" ] [ text "Show" ]
+                    else button [ onClick Hide, class "w3-button w3-yellow" ] [ text "Hide" ],
                       button [ onClick LogOut, class "w3-button w3-red" ] [ text "Log Out" ] ]
         in
         let
             mails =
-                div [ class "w3-container" ] [ h1 [] [ text "Emails" ], p [] buttons, div [class "w3-responsive"] [ table [ class "w3-table-all" ] (legend :: List.map view_mail model.content.mails) ] ]
+                div [ class "w3-container" ] [ h1 [] [ text "Emails" ], p [] buttons, div [class "w3-responsive"] [ table [ class "w3-table-all" ] (legend :: List.map (view_mail model.blur) model.content.mails) ] ]
         in
         let
             size =
@@ -199,15 +211,16 @@ view model =
         { title = title, body = body }
 
 
-view_mail : Mail -> Html Msg
-view_mail mail =
+view_mail : Bool -> Mail -> Html Msg
+view_mail blur mail =
+    let attr = if blur then [class "blur"] else [] in
     let
         subject =
-            td [] [ text mail.subject ]
+            td attr [ text mail.subject ]
     in
     let
         from =
-            td [] [ text mail.from ]
+            td attr [ text mail.from ]
     in
     let
         to =
